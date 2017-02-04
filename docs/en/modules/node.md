@@ -104,7 +104,7 @@ Firmware from before 05 Jan 2016 have a maximum sleeptime of ~35 minutes.
 	- 0, init data byte 108 is valuable
 	- \> 0, init data byte 108 is valueless
 	- 0, RF_CAL or not after deep-sleep wake up, depends on init data byte 108
-	- 1, RF_CAL after deep-sleep wake up, there will belarge current
+	- 1, RF_CAL after deep-sleep wake up, there will be large current
 	- 2, no RF_CAL after deep-sleep wake up, there will only be small current
 	- 4, disable RF after deep-sleep wake up, just like modem sleep, there will be the smallest current
 
@@ -135,6 +135,19 @@ none
 
 #### Returns
 flash ID (number)
+
+## node.flashsize()
+
+Returns the flash chip size in bytes. On 4MB modules like ESP-12 the return value is 4194304 = 4096KB.
+
+#### Syntax
+`node.flashsize()`
+
+#### Parameters
+none
+
+#### Returns
+flash size in bytes (integer)
 
 ## node.heap()
 
@@ -349,6 +362,33 @@ Nothing
 #### Example
 ```lua
 node.osprint(true)
+```
+
+## node.random()
+
+This behaves like math.random except that it uses true random numbers derived from the ESP8266 hardware. It returns uniformly distributed
+numbers in the required range. It also takes care to get large ranges correct. 
+
+It can be called in three ways. Without arguments in the floating point build of NodeMCU, it returns a random real number with uniform distribution in the interval [0,1). 
+When called with only one argument, an integer n, it returns an integer random number x such that 1 <= x <= n. For instance, you can simulate the result of a die with random(6). 
+Finally, random can be called with two integer arguments, l and u, to get a pseudo-random integer x such that l <= x <= u.
+
+#### Syntax
+`node.random()`
+`node.random(n)`
+`node.random(l, u)`
+
+#### Parameters
+- `n` the number of distinct integer values that can be returned -- in the (inclusive) range 1 .. `n`
+- `l` the lower bound of the range
+- `u` the upper bound of the range
+
+#### Returns
+The random number in the appropriate range. Note that the zero argument form will always return 0 in the integer build.
+
+#### Example
+```lua
+print ("I rolled a", node.random(6))
 ```
 
 # node.egc module

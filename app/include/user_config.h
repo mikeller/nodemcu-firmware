@@ -36,13 +36,13 @@ extern void luaL_assertfail(const char *file, int line, const char *message);
 #define NODE_ERROR
 
 #ifdef NODE_DEBUG
-#define NODE_DBG c_printf
+#define NODE_DBG dbg_printf
 #else
 #define NODE_DBG
 #endif	/* NODE_DEBUG */
 
 #ifdef NODE_ERROR
-#define NODE_ERR c_printf
+#define NODE_ERR dbg_printf
 #else
 #define NODE_ERR
 #endif	/* NODE_ERROR */
@@ -68,8 +68,16 @@ extern void luaL_assertfail(const char *file, int line, const char *message);
 //#define MD2_ENABLE
 #define SHA2_ENABLE
 
-#define BUILD_SPIFFS	1
+#define BUILD_SPIFFS
 #define SPIFFS_CACHE 1
+
+//#define BUILD_FATFS
+
+// maximum length of a filename
+#define FS_OBJ_NAME_LEN 31
+
+// maximum number of open files for SPIFFS
+#define SPIFFS_MAX_OPEN_FILES 4
 
 // Uncomment this next line for fastest startup 
 // It reduces the format time dramatically

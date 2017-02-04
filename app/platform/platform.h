@@ -7,6 +7,7 @@
 
 #include "c_types.h"
 #include "driver/pwm.h"
+#include "driver/uart.h"
 #include "task/task.h"
 
 // Error / status codes
@@ -110,6 +111,8 @@ int platform_spi_send( uint8_t id, uint8_t bitlen, spi_data_type data );
 spi_data_type platform_spi_send_recv( uint8_t id, uint8_t bitlen, spi_data_type data );
 void platform_spi_select( unsigned id, int is_select );
 
+int platform_spi_blkwrite( uint8_t id, size_t len, const uint8_t *data );
+int platform_spi_blkread( uint8_t id, size_t len, uint8_t *data );
 int platform_spi_set_mosi( uint8_t id, uint16_t offset, uint8_t bitlen, spi_data_type data );
 spi_data_type platform_spi_get_miso( uint8_t id, uint16_t offset, uint8_t bitlen );
 int platform_spi_transaction( uint8_t id, uint8_t cmd_bitlen, spi_data_type cmd_data,
@@ -159,6 +162,7 @@ int platform_s_uart_recv( unsigned id, timer_data_type timeout );
 int platform_uart_set_flow_control( unsigned id, int type );
 int platform_s_uart_set_flow_control( unsigned id, int type );
 void platform_uart_alt( int set );
+void platform_uart_get_config(unsigned id, uint32_t *baudp, uint32_t *databitsp, uint32_t *parityp, uint32_t *stopbitsp);
 
 // *****************************************************************************
 // PWM subsection

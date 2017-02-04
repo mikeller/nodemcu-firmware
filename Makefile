@@ -3,26 +3,31 @@
 .NOTPARALLEL:
 
 # SDK version NodeMCU is locked to
-SDK_VER:=1.5.4.1
+SDK_VER:=2.0.0
 
 # no patch: SDK_BASE_VER equals SDK_VER and sdk dir depends on sdk_extracted
-#SDK_BASE_VER:=SDK_VER
-#SDK_DIR_DEPENDS:=sdk_extracted
+SDK_BASE_VER:=$(SDK_VER)
+SDK_DIR_DEPENDS:=sdk_extracted
 # with patch: SDK_BASE_VER differs from SDK_VER and sdk dir depends on sdk_patched
-SDK_BASE_VER:=1.5.4
-SDK_DIR_DEPENDS:=sdk_patched
+#SDK_BASE_VER:=1.5.4
+#SDK_DIR_DEPENDS:=sdk_patched
 
-SDK_FILE_VER:=$(SDK_BASE_VER)_16_05_20
-SDK_FILE_ID:=1469
-SDK_FILE_SHA1:=868784bd37d47f31d52b81f133aa1fb70c58e17d
-SDK_PATCH_VER:=$(SDK_VER)_patch_20160704
-SDK_PATCH_ID:=1572
-SDK_PATCH_SHA1:=388d9e91df74e3b49fca126da482cf822cf1ebf1
+SDK_FILE_VER:=$(SDK_BASE_VER)_16_08_10
+SDK_FILE_SHA1:=b0127a99b45b3778be4a752387ab8dc0f6dd7810
+#SDK_PATCH_VER:=$(SDK_VER)_patch_20160704
+#SDK_PATCH_SHA1:=388d9e91df74e3b49fca126da482cf822cf1ebf1
 # Ensure we search "our" SDK before the tool-chain's SDK (if any)
 TOP_DIR:=$(abspath $(dir $(lastword $(MAKEFILE_LIST))))
 SDK_DIR:=$(TOP_DIR)/sdk/esp_iot_sdk_v$(SDK_VER)
 CCFLAGS:= -I$(TOP_DIR)/sdk-overrides/include -I$(SDK_DIR)/include
 LDFLAGS:= -L$(SDK_DIR)/lib -L$(SDK_DIR)/ld $(LDFLAGS)
+
+ifdef DEBUG
+  CCFLAGS += -ggdb -O0
+  LDFLAGS += -ggdb
+else
+  CCFLAGS += -Os
+endif
 
 #############################################################
 # Select compile
@@ -38,11 +43,11 @@ ifeq ($(OS),Windows_NT)
 		CPP = xt-cpp
 		OBJCOPY = xt-objcopy
 		#MAKE = xt-make
-		CCFLAGS += -Os --rename-section .text=.irom0.text --rename-section .literal=.irom0.literal
+		CCFLAGS += --rename-section .text=.irom0.text --rename-section .literal=.irom0.literal
 	else 
 		# It is gcc, may be cygwin
 		# Can we use -fdata-sections?
-		CCFLAGS += -Os -ffunction-sections -fno-jump-tables -fdata-sections
+		CCFLAGS += -ffunction-sections -fno-jump-tables -fdata-sections
 		AR = xtensa-lx106-elf-ar
 		CC = xtensa-lx106-elf-gcc
 		NM = xtensa-lx106-elf-nm
@@ -69,7 +74,7 @@ else
 	else
 		ESPPORT = $(COMPORT)
 	endif
-	CCFLAGS += -Os -ffunction-sections -fno-jump-tables -fdata-sections
+	CCFLAGS += -ffunction-sections -fno-jump-tables -fdata-sections
 	AR = xtensa-lx106-elf-ar
 	CC = xtensa-lx106-elf-gcc
 	NM = xtensa-lx106-elf-nm
@@ -200,26 +205,26 @@ sdk_patched: sdk_extracted $(TOP_DIR)/sdk/.patched-$(SDK_VER)
 
 $(TOP_DIR)/sdk/.extracted-$(SDK_BASE_VER): $(TOP_DIR)/cache/esp_iot_sdk_v$(SDK_FILE_VER).zip
 	mkdir -p "$(dir $@)"
-	(cd "$(dir $@)" && rm -fr esp_iot_sdk_v$(SDK_VER) ESP8266_NONOS_SDK && unzip $(TOP_DIR)/cache/esp_iot_sdk_v$(SDK_FILE_VER).zip ESP8266_NONOS_SDK/lib/* ESP8266_NONOS_SDK/ld/eagle.rom.addr.v6.ld ESP8266_NONOS_SDK/include/* )
+	(cd "$(dir $@)" && rm -fr esp_iot_sdk_v$(SDK_VER) ESP8266_NONOS_SDK && unzip $(TOP_DIR)/cache/esp_iot_sdk_v$(SDK_FILE_VER).zip ESP8266_NONOS_SDK/lib/* ESP8266_NONOS_SDK/ld/eagle.rom.addr.v6.ld ESP8266_NONOS_SDK/include/* ESP8266_NONOS_SDK/bin/esp_init_data_default.bin)
 	mv $(dir $@)/ESP8266_NONOS_SDK $(dir $@)/esp_iot_sdk_v$(SDK_VER)
 	rm -f $(SDK_DIR)/lib/liblwip.a
 	touch $@
 
 $(TOP_DIR)/sdk/.patched-$(SDK_VER): $(TOP_DIR)/cache/esp_iot_sdk_v$(SDK_PATCH_VER).zip
 	mkdir -p "$(dir $@)/patch"
-	(cd "$(dir $@)/patch" && unzip $(TOP_DIR)/cache/esp_iot_sdk_v$(SDK_PATCH_VER)*.zip *.a && mv *.a $(SDK_DIR)/lib/)
+	(cd "$(dir $@)/patch" && unzip $(TOP_DIR)/cache/esp_iot_sdk_v$(SDK_PATCH_VER)*.zip *.a esp_init_data_default.bin && mv *.a $(SDK_DIR)/lib/ && mv esp_init_data_default.bin $(SDK_DIR)/bin/)
 	rmdir $(dir $@)/patch
 	rm -f $(SDK_DIR)/lib/liblwip.a
 	touch $@
 
 $(TOP_DIR)/cache/esp_iot_sdk_v$(SDK_FILE_VER).zip:
 	mkdir -p "$(dir $@)"
-	wget --tries=10 --timeout=15 --waitretry=30 --read-timeout=20 --retry-connrefused http://bbs.espressif.com/download/file.php?id=$(SDK_FILE_ID) -O $@ || { rm -f "$@"; exit 1; }
+	wget --tries=10 --timeout=15 --waitretry=30 --read-timeout=20 --retry-connrefused http://espressif.com/sites/default/files/sdks/esp8266_nonos_sdk_v$(SDK_FILE_VER).zip -O $@ || { rm -f "$@"; exit 1; }
 	(echo "$(SDK_FILE_SHA1)  $@" | sha1sum -c -) || { rm -f "$@"; exit 1; }
 
 $(TOP_DIR)/cache/esp_iot_sdk_v$(SDK_PATCH_VER).zip:
 	mkdir -p "$(dir $@)"
-	wget --tries=10 --timeout=15 --waitretry=30 --read-timeout=20 --retry-connrefused http://bbs.espressif.com/download/file.php?id=$(SDK_PATCH_ID) -O $@ || { rm -f "$@"; exit 1; }
+	wget --tries=10 --timeout=15 --waitretry=30 --read-timeout=20 --retry-connrefused http://espressif.com/sites/default/files/sdks/esp8266_nonos_sdk_v$(SDK_PATCH_VER).zip -O $@ || { rm -f "$@"; exit 1; }
 	(echo "$(SDK_PATCH_SHA1)  $@" | sha1sum -c -) || { rm -f "$@"; exit 1; }
 
 clean:
@@ -266,7 +271,7 @@ endif
 .PHONY: spiffs-image-remove
 
 spiffs-image-remove:
-	$(MAKE) -C tools remove-image
+	$(MAKE) -C tools remove-image spiffsimg/spiffsimg
 
 .PHONY: spiffs-image
 

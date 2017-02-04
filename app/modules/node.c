@@ -23,7 +23,7 @@
 #include "driver/uart.h"
 #include "user_interface.h"
 #include "flash_api.h"
-#include "flash_fs.h"
+#include "vfs.h"
 #include "user_version.h"
 #include "rom.h"
 #include "task/task.h"
@@ -226,11 +226,11 @@ static int writer(lua_State* L, const void* p, size_t size, void* u)
 {
   UNUSED(L);
   int file_fd = *( (int *)u );
-  if ((FS_OPEN_OK - 1) == file_fd)
+  if (!file_fd)
     return 1;
   NODE_DBG("get fd:%d,size:%d\n", file_fd, size);
 
-  if (size != 0 && (size != fs_write(file_fd, (const char *)p, size)) )
+  if (size != 0 && (size != vfs_write(file_fd, (const char *)p, size)) )
     return 1;
   NODE_DBG("write fd:%d,size:%d\n", file_fd, size);
   return 0;
@@ -241,23 +241,26 @@ static int writer(lua_State* L, const void* p, size_t size, void* u)
 static int node_compile( lua_State* L )
 {
   Proto* f;
-  int file_fd = FS_OPEN_OK - 1;
+  int file_fd = 0;
   size_t len;
   const char *fname = luaL_checklstring( L, 1, &len );
-  if ( len >= FS_NAME_MAX_LENGTH )
-    return luaL_error(L, "filename too long");
+  const char *basename = vfs_basename( fname );
+  luaL_argcheck(L, c_strlen(basename) <= FS_OBJ_NAME_LEN && c_strlen(fname) == len, 1, "filename invalid");
 
-  char output[FS_NAME_MAX_LENGTH];
+  char *output = luaM_malloc( L, len+1 );
   c_strcpy(output, fname);
   // check here that filename end with ".lua".
-  if (len < 4 || (c_strcmp( output + len - 4, ".lua") != 0) )
+  if (len < 4 || (c_strcmp( output + len - 4, ".lua") != 0) ) {
+    luaM_free( L, output );
     return luaL_error(L, "not a .lua file");
+  }
 
   output[c_strlen(output) - 2] = 'c';
   output[c_strlen(output) - 1] = '\0';
   NODE_DBG(output);
   NODE_DBG("\n");
   if (luaL_loadfsfile(L, fname) != 0) {
+    luaM_free( L, output );
     return luaL_error(L, lua_tostring(L, -1));
   }
 
@@ -265,9 +268,10 @@ static int node_compile( lua_State* L )
 
   int stripping = 1;      /* strip debug information? */
 
-  file_fd = fs_open(output, fs_mode2flag("w+"));
-  if (file_fd < FS_OPEN_OK)
+  file_fd = vfs_open(output, "w+");
+  if (!file_fd)
   {
+    luaM_free( L, output );
     return luaL_error(L, "cannot open/write to file");
   }
 
@@ -275,12 +279,13 @@ static int node_compile( lua_State* L )
   int result = luaU_dump(L, f, writer, &file_fd, stripping);
   lua_unlock(L);
 
-  if (fs_flush(file_fd) < 0) {   // result codes aren't propagated by flash_fs.h
+  if (vfs_flush(file_fd) != VFS_RES_OK) {
     // overwrite Lua error, like writer() does in case of a file io error
     result = 1;
   }
-  fs_close(file_fd);
-  file_fd = FS_OPEN_OK - 1;
+  vfs_close(file_fd);
+  file_fd = 0;
+  luaM_free( L, output );
 
   if (result == LUA_ERR_CC_INTOVERFLOW) {
     return luaL_error(L, "value too big or small for target integer type");
@@ -462,6 +467,79 @@ static int node_osprint( lua_State* L )
   return 0;  
 }
 
+int node_random_range(int l, int u) {
+  // The range is the number of different values to return
+  unsigned int range = u + 1 - l;
+
+  // If this is very large then use simpler code
+  if (range >= 0x7fffffff) {
+    unsigned int v;
+
+    // This cannot loop more than half the time
+    while ((v = os_random()) >= range) {
+    }
+
+    // Now v is in the range [0, range)
+    return v + l;
+  }
+
+  // Easy case, with only one value, we know the result
+  if (range == 1) {
+    return l;
+  }
+
+  // Another easy case -- uniform 32-bit
+  if (range == 0) {
+    return os_random();
+  }
+
+  // Now we have to figure out what a large multiple of range is
+  // that just fits into 32 bits.
+  // The limit will be less than 1 << 32 by some amount (not much)
+  uint32_t limit = ((0x80000000 / ((range + 1) >> 1)) - 1) * range;
+
+  uint32_t v;
+
+  while ((v = os_random()) >= limit) {
+  }
+
+  // Now v is uniformly distributed in [0, limit) and limit is a multiple of range
+
+  return (v % range) + l;
+}
+
+static int node_random (lua_State *L) {
+  int u;
+  int l;
+
+  switch (lua_gettop(L)) {  /* check number of arguments */
+    case 0: {  /* no arguments */
+#ifdef LUA_NUMBER_INTEGRAL
+      lua_pushnumber(L, 0);  /* Number between 0 and 1 - always 0 with ints */
+#else
+      lua_pushnumber(L, (lua_Number)os_random() / (lua_Number)(1LL << 32));
+#endif
+      return 1;
+    }
+    case 1: {  /* only upper limit */
+      l = 1;
+      u = luaL_checkint(L, 1);
+      break;
+    }
+    case 2: {  /* lower and upper limits */
+      l = luaL_checkint(L, 1);
+      u = luaL_checkint(L, 2);
+      break;
+    }
+    default: 
+      return luaL_error(L, "wrong number of arguments");
+  }
+  luaL_argcheck(L, l<=u, 2, "interval is empty");
+  lua_pushnumber(L, node_random_range(l, u));  /* int between `l' and `u' */
+  return 1;
+}
+
+
 // Module function map
 
 static const LUA_REG_TYPE node_egc_map[] = {
@@ -499,6 +577,7 @@ static const LUA_REG_TYPE node_map[] =
   { LSTRKEY( "setcpufreq" ), LFUNCVAL( node_setcpufreq) },
   { LSTRKEY( "bootreason" ), LFUNCVAL( node_bootreason) },
   { LSTRKEY( "restore" ), LFUNCVAL( node_restore) },
+  { LSTRKEY( "random" ), LFUNCVAL( node_random) },
 #ifdef LUA_OPTIMIZE_DEBUG
   { LSTRKEY( "stripdebug" ), LFUNCVAL( node_stripdebug ) },
 #endif

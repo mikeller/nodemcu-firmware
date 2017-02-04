@@ -14,23 +14,25 @@
 #include "nodemcu_spiffs.h"
 // ----------- >8 ------------
 
+#include "user_config.h"
+
 // compile time switches
 
 // Set generic spiffs debug output call.
 #ifndef SPIFFS_DBG
-#define SPIFFS_DBG(...) //printf(__VA_ARGS__)
+#define SPIFFS_DBG(...) //dbg_printf(__VA_ARGS__)
 #endif
 // Set spiffs debug output call for garbage collecting.
 #ifndef SPIFFS_GC_DBG
-#define SPIFFS_GC_DBG(...) //printf(__VA_ARGS__)
+#define SPIFFS_GC_DBG(...) //dbg_printf(__VA_ARGS__)
 #endif
 // Set spiffs debug output call for caching.
 #ifndef SPIFFS_CACHE_DBG
-#define SPIFFS_CACHE_DBG(...) //printf(__VA_ARGS__)
+#define SPIFFS_CACHE_DBG(...) //dbg_printf(__VA_ARGS__)
 #endif
 // Set spiffs debug output call for system consistency checks.
 #ifndef SPIFFS_CHECK_DBG
-#define SPIFFS_CHECK_DBG(...) //printf(__VA_ARGS__)
+#define SPIFFS_CHECK_DBG(...) //dbg_printf(__VA_ARGS__)
 #endif
 
 // Enable/disable API functions to determine exact number of bytes
@@ -99,7 +101,7 @@
 // zero-termination character, meaning maximum string of characters
 // can at most be SPIFFS_OBJ_NAME_LEN - 1.
 #ifndef SPIFFS_OBJ_NAME_LEN
-#define SPIFFS_OBJ_NAME_LEN             (32)
+#define SPIFFS_OBJ_NAME_LEN             (FS_OBJ_NAME_LEN+1)
 #endif
 
 // Size of buffer allocated on stack used when copying data.
@@ -209,7 +211,7 @@
 #endif
 #if SPIFFS_TEST_VISUALISATION
 #ifndef spiffs_printf
-#define spiffs_printf(...)                printf(__VA_ARGS__)
+#define spiffs_printf(...)                dbg_printf(__VA_ARGS__)
 #endif
 // spiffs_printf argument for a free page
 #ifndef SPIFFS_TEST_VIS_FREE_STR
